@@ -42,6 +42,12 @@
   .card.commit { border-left-color: #f39c12; }
   .card .label { font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
   .card .value { font-size: 22px; font-weight: 600; margin-top: 6px; }
+  .card .pct {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-top: 4px;
+    font-weight: 500;
+  }
   .value.positive { color: #27ae60; }
   .value.negative { color: #c0392b; }
 
@@ -195,14 +201,21 @@
     align-items: center;
     border-left: 3px solid #bdc3c7;
     font-size: 13px;
+    gap: 8px;
   }
   .subcat-item.ecom { border-left-color: #e67e22; }
   .subcat-item.trade { border-left-color: #27ae60; }
   .subcat-item.personal { border-left-color: #2980b9; }
-  .subcat-item .name { color: #2c3e50; font-weight: 500; }
-  .subcat-item .amt { font-weight: 600; }
+  .subcat-item .name { color: #2c3e50; font-weight: 500; flex: 1; }
+  .subcat-item .amt { font-weight: 600; white-space: nowrap; }
   .subcat-item .amt.expense { color: #c0392b; }
   .subcat-item .amt.income { color: #27ae60; }
+  .subcat-item .pct-inline {
+    font-size: 11px;
+    color: #7f8c8d;
+    font-weight: 500;
+    margin-left: 4px;
+  }
   .subcat-item .count {
     font-size: 11px;
     color: #95a5a6;
@@ -225,26 +238,32 @@
     <div class="card ecom">
       <div class="label">E-commerce Net</div>
       <div class="value" id="ecomNet">₹0</div>
+      <div class="pct" id="ecomPct">0% of expenses</div>
     </div>
     <div class="card trade">
       <div class="label">Trading Net</div>
       <div class="value" id="tradeNet">₹0</div>
+      <div class="pct" id="tradePct">0% of expenses</div>
     </div>
     <div class="card personal">
       <div class="label">Personal Spend</div>
       <div class="value" id="personalNet">₹0</div>
+      <div class="pct" id="personalPct">0% of expenses</div>
     </div>
     <div class="card total">
       <div class="label">Total Expenses</div>
       <div class="value" id="totalExp">₹0</div>
+      <div class="pct">&nbsp;</div>
     </div>
     <div class="card net">
       <div class="label">Overall Net</div>
       <div class="value" id="overallNet">₹0</div>
+      <div class="pct">&nbsp;</div>
     </div>
     <div class="card commit">
       <div class="label">Fixed Monthly Commitments</div>
       <div class="value" id="monthlyCommit">₹0</div>
+      <div class="pct" id="commitPct">0% of monthly spend</div>
     </div>
   </div>
 
@@ -419,6 +438,7 @@
         'Petrol / Fuel',
         'Electricity Bill',
         'Cable / Internet / DTH',
+        'OTT Subscription',
         'Mobile / Phone Bill',
         'Water / Gas Bill',
         'Rent / Maintenance',
@@ -430,6 +450,9 @@
         'PPF Contribution',
         'SIP / Mutual Fund',
         'EMI / Loan',
+        'Education Loan',
+        'Sayesha Education',
+        'Aarav Education',
         'Medical / Healthcare',
         'Education',
         'Household / Repairs',
@@ -548,6 +571,7 @@
     const subcatGrid = document.getElementById('subcatGrid');
     subcatGrid.innerHTML = '';
     const subcatMap = {};
+    let filteredExpTotal = 0;
     filtered.forEach(t => {
       const key = t.category + '||' + t.subcategory + '||' + t.type;
       if (!subcatMap[key]) {
@@ -555,6 +579,7 @@
       }
       subcatMap[key].total += t.amount;
       subcatMap[key].count += 1;
+      if (t.type === 'expense') filteredExpTotal += t.amount;
     });
     const subcatList = Object.values(subcatMap).sort((a, b) => b.total - a.total);
     if (subcatList.length === 0) {
@@ -564,9 +589,14 @@
         const div = document.createElement('div');
         div.className = 'subcat-item ' + s.category;
         const sign = s.type === 'expense' ? '-' : '+';
+        let pctText = '';
+        if (s.type === 'expense' && filteredExpTotal > 0) {
+          const p = (s.total / filteredExpTotal) * 100;
+          pctText = `<span class="pct-inline">${p.toFixed(1)}%</span>`;
+        }
         div.innerHTML = `
           <span class="name">${s.subcategory}<span class="count">(${s.count})</span></span>
-          <span class="amt ${s.type}">${sign} ${fmt(s.total)}</span>
+          <span class="amt ${s.type}">${sign} ${fmt(s.total)}${pctText}</span>
         `;
         subcatGrid.appendChild(div);
       });
@@ -636,6 +666,22 @@
     setVal('overallNet', overall);
     document.getElementById('totalExp').textContent = fmt(ecomOut + tradeOut + persOut);
     document.getElementById('monthlyCommit').textContent = fmt(monthlyCommit);
+
+    // Category-wise expense percentages (of total expenses)
+    const totalExpAll = ecomOut + tradeOut + persOut;
+    const pct = (part) => totalExpAll > 0 ? ((part / totalExpAll) * 100).toFixed(1) + '%' : '0%';
+    document.getElementById('ecomPct').textContent = pct(ecomOut) + ' of expenses';
+    document.getElementById('tradePct').textContent = pct(tradeOut) + ' of expenses';
+    document.getElementById('personalPct').textContent = pct(persOut) + ' of expenses';
+
+    // Commitment percentage — monthly commitment vs average monthly actual spend
+    // Estimate monthly actuals: pick unique year-months in data, divide total by count
+    const months = new Set();
+    transactions.forEach(t => { if (t.date) months.add(t.date.slice(0, 7)); });
+    const monthCount = Math.max(1, months.size);
+    const avgMonthlySpend = totalExpAll / monthCount;
+    const commitPctVal = avgMonthlySpend > 0 ? ((monthlyCommit / avgMonthlySpend) * 100).toFixed(1) + '%' : '0%';
+    document.getElementById('commitPct').textContent = commitPctVal + ' of avg monthly spend';
   }
 
   function exportCSV() {
