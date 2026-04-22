@@ -345,7 +345,7 @@
     <div class="actions">
       <button class="small" onclick="exportCSV()">⬇ Export CSV (Backup)</button>
       <button class="small secondary" onclick="document.getElementById('importFile').click()">⬆ Import CSV</button>
-      <input type="file" id="importFile" accept=".csv" style="display:none" onchange="importCSV(event)">
+      <input type="file" id="importFile" accept=".csv,.txt,text/csv,text/plain,application/vnd.ms-excel,*/*" style="display:none" onchange="importCSV(event)">
       <button class="small danger" onclick="clearAll()">🗑 Clear All Data</button>
     </div>
   </div>
@@ -443,21 +443,22 @@
 
   let transactions = [];
 
-  async function loadData() {
+  function loadData() {
     try {
-      const res = await window.storage.get('transactions');
-      if (res && res.value) transactions = JSON.parse(res.value);
+      const raw = localStorage.getItem('expense_tracker_transactions');
+      if (raw) transactions = JSON.parse(raw);
     } catch (e) {
       transactions = [];
     }
     render();
   }
 
-  async function saveData() {
+  function saveData() {
     try {
-      await window.storage.set('transactions', JSON.stringify(transactions));
+      localStorage.setItem('expense_tracker_transactions', JSON.stringify(transactions));
     } catch (e) {
       console.error('Save failed:', e);
+      alert('Could not save data. Your browser may be blocking storage. Please check Privacy settings.');
     }
   }
 
@@ -725,7 +726,7 @@
   });
 
   // ========== IMPORT CSV ==========
-  async function importCSV(event) {
+  function importCSV(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -733,9 +734,13 @@
       try {
         const text = e.target.result;
         const lines = text.split(/\r?\n/).filter(l => l.trim());
-        if (lines.length < 2) { alert('CSV is empty'); return; }
+        if (lines.length < 2) {
+          alert('❌ CSV is empty or has only a header row.');
+          event.target.value = '';
+          return;
+        }
 
-        // Parse CSV respecting quoted fields
+        // Parse CSV line respecting quoted fields
         function parseLine(line) {
           const result = [];
           let cur = '', inQ = false;
@@ -747,33 +752,102 @@
             else cur += ch;
           }
           result.push(cur);
-          return result;
+          return result.map(s => s.trim());
         }
 
-        const catReverse = { 'E-commerce': 'ecom', 'Stock Trading': 'trade', 'Personal': 'personal' };
+        // Detect column positions from header row (flexible — any order)
+        const headerCols = parseLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+        const findCol = (names) => {
+          for (const n of names) {
+            const idx = headerCols.indexOf(n);
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
+        const colIdx = {
+          date: findCol(['date', 'txndate', 'transactiondate']),
+          category: findCol(['category', 'cat']),
+          type: findCol(['type']),
+          subcategory: findCol(['subcategory', 'subcat']),
+          description: findCol(['description', 'desc', 'note', 'notes']),
+          recurring: findCol(['recurring', 'frequency', 'freq']),
+          amount: findCol(['amount', 'amt', 'value'])
+        };
+
+        // Validate required columns
+        const missing = [];
+        if (colIdx.date === -1) missing.push('Date');
+        if (colIdx.category === -1) missing.push('Category');
+        if (colIdx.type === -1) missing.push('Type');
+        if (colIdx.amount === -1) missing.push('Amount');
+        if (missing.length > 0) {
+          alert('❌ CSV is missing required columns: ' + missing.join(', ') +
+                '\n\nHeader found: ' + lines[0] +
+                '\n\nExpected: Date, Category, Type, Subcategory, Description, Recurring, Amount');
+          event.target.value = '';
+          return;
+        }
+
+        // Category normalization — accept many variants
+        const catNorm = (raw) => {
+          const v = (raw || '').toLowerCase().trim();
+          if (v.includes('ecom') || v.includes('e-com')) return 'ecom';
+          if (v.includes('trad') || v.includes('stock')) return 'trade';
+          if (v.includes('person') || v.includes('house')) return 'personal';
+          return 'personal'; // default fallback
+        };
+        const typeNorm = (raw) => {
+          const v = (raw || '').toLowerCase().trim();
+          if (v.includes('income') || v.includes('profit') || v === 'in' || v.includes('credit')) return 'income';
+          return 'expense';
+        };
+        const recNorm = (raw) => {
+          const v = (raw || '').toLowerCase().trim();
+          if (v.includes('month')) return 'monthly';
+          if (v.includes('quart')) return 'quarterly';
+          if (v.includes('year') || v.includes('annual')) return 'yearly';
+          return 'none';
+        };
+
         const imported = [];
+        const skipped = [];
         for (let i = 1; i < lines.length; i++) {
           const cols = parseLine(lines[i]);
-          if (cols.length < 7) continue;
+          const dateStr = cols[colIdx.date] || '';
+          const amtRaw = cols[colIdx.amount] || '';
+          // Clean amount — remove ₹, commas, spaces
+          const amt = parseFloat(amtRaw.replace(/[₹,\s]/g, ''));
+
+          if (!dateStr || isNaN(amt) || amt <= 0) {
+            skipped.push('Row ' + (i+1) + ': ' + (dateStr || 'no date') + ' / amount=' + amtRaw);
+            continue;
+          }
+
           imported.push({
             id: Date.now() + i,
-            date: cols[0],
-            category: catReverse[cols[1]] || 'personal',
-            type: cols[2],
-            subcategory: cols[3],
-            description: cols[4],
-            recurring: cols[5] || 'none',
-            amount: parseFloat(cols[6]) || 0
+            date: dateStr,
+            category: catNorm(cols[colIdx.category]),
+            type: typeNorm(cols[colIdx.type]),
+            subcategory: colIdx.subcategory >= 0 ? (cols[colIdx.subcategory] || 'Other') : 'Other',
+            description: colIdx.description >= 0 ? (cols[colIdx.description] || '') : '',
+            recurring: colIdx.recurring >= 0 ? recNorm(cols[colIdx.recurring]) : 'none',
+            amount: amt
           });
         }
 
-        if (imported.length === 0) { alert('No valid rows found'); return; }
+        if (imported.length === 0) {
+          alert('❌ No valid rows found in CSV.\n\n' +
+                'Skipped ' + skipped.length + ' rows:\n' + skipped.slice(0, 5).join('\n') +
+                (skipped.length > 5 ? '\n...and more' : ''));
+          event.target.value = '';
+          return;
+        }
 
-        const choice = confirm(
-          `Found ${imported.length} transactions in the CSV.\n\n` +
-          `Click OK to REPLACE all current data with imported data.\n` +
-          `Click Cancel to MERGE (add imported on top of existing).`
-        );
+        const msg = `✅ Found ${imported.length} valid transactions` +
+                    (skipped.length > 0 ? ` (${skipped.length} skipped)` : '') + '.\n\n' +
+                    'Click OK to REPLACE all current data.\n' +
+                    'Click Cancel to MERGE (add to existing entries).';
+        const choice = confirm(msg);
 
         if (choice) {
           transactions = imported;
@@ -781,13 +855,19 @@
           transactions = transactions.concat(imported);
         }
 
-        await saveData();
+        saveData();
         render();
-        alert('Import successful! ' + imported.length + ' transactions loaded.');
+        alert('✅ Import successful!\n\n' + imported.length + ' transactions loaded.' +
+              (skipped.length > 0 ? '\n' + skipped.length + ' rows skipped (invalid date/amount).' : ''));
       } catch (err) {
-        alert('Failed to import CSV: ' + err.message);
+        alert('❌ Failed to import CSV:\n\n' + err.message + '\n\nPlease check the file format.');
+        console.error(err);
       }
       event.target.value = ''; // reset so same file can be re-imported
+    };
+    reader.onerror = function() {
+      alert('❌ Could not read the file. Please try again.');
+      event.target.value = '';
     };
     reader.readAsText(file);
   }
