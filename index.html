@@ -148,6 +148,12 @@
   }
   th { background: #f8f9fa; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #7f8c8d; }
   tr:hover { background: #f8f9fa; }
+  tr.recurring-row { background: #fffbe6; }
+  tr.recurring-row:hover { background: #fff3bf; }
+  tr.recurring-row.quarterly { background: #e8f4fd; }
+  tr.recurring-row.quarterly:hover { background: #d4e9f7; }
+  tr.recurring-row.yearly { background: #f3e8fd; }
+  tr.recurring-row.yearly:hover { background: #e8d4f7; }
   .tag {
     display: inline-block;
     padding: 2px 8px;
@@ -206,6 +212,9 @@
   .subcat-item.ecom { border-left-color: #e67e22; }
   .subcat-item.trade { border-left-color: #27ae60; }
   .subcat-item.personal { border-left-color: #2980b9; }
+  .subcat-item.rec-monthly { background: #fffbe6; }
+  .subcat-item.rec-quarterly { background: #e8f4fd; }
+  .subcat-item.rec-yearly { background: #f3e8fd; }
   .subcat-item .name { color: #2c3e50; font-weight: 500; flex: 1; }
   .subcat-item .amt { font-weight: 600; white-space: nowrap; }
   .subcat-item .amt.expense { color: #c0392b; }
@@ -344,6 +353,13 @@
 
     <div class="subcat-summary">
       <h3>📊 Subcategory-wise Totals <span style="text-transform:none;font-weight:normal;color:#95a5a6;">(respects filters above)</span></h3>
+      <div style="font-size:11px;color:#7f8c8d;margin-bottom:10px;">
+        Legend:
+        <span style="background:#fffbe6;padding:2px 8px;border-radius:10px;margin:0 3px;">🔁 Monthly</span>
+        <span style="background:#e8f4fd;padding:2px 8px;border-radius:10px;margin:0 3px;">📅 Quarterly</span>
+        <span style="background:#f3e8fd;padding:2px 8px;border-radius:10px;margin:0 3px;">🗓️ Yearly</span>
+        <span style="background:#fff;padding:2px 8px;border-radius:10px;border:1px solid #ecf0f1;margin:0 3px;">One-time</span>
+      </div>
       <div class="subcat-grid" id="subcatGrid"></div>
     </div>
 
@@ -577,10 +593,16 @@
     filtered.forEach(t => {
       const key = t.category + '||' + t.subcategory + '||' + t.type;
       if (!subcatMap[key]) {
-        subcatMap[key] = { category: t.category, subcategory: t.subcategory, type: t.type, total: 0, count: 0 };
+        subcatMap[key] = {
+          category: t.category, subcategory: t.subcategory, type: t.type,
+          total: 0, count: 0,
+          recCounts: { monthly: 0, quarterly: 0, yearly: 0, none: 0 }
+        };
       }
       subcatMap[key].total += t.amount;
       subcatMap[key].count += 1;
+      const r = t.recurring || 'none';
+      subcatMap[key].recCounts[r] = (subcatMap[key].recCounts[r] || 0) + 1;
       if (t.type === 'expense') filteredExpTotal += t.amount;
     });
     const subcatList = Object.values(subcatMap).sort((a, b) => b.total - a.total);
@@ -589,15 +611,28 @@
     } else {
       subcatList.forEach(s => {
         const div = document.createElement('div');
-        div.className = 'subcat-item ' + s.category;
+        // Determine dominant recurring frequency (any recurring > one-time)
+        let domRec = 'none';
+        const rc = s.recCounts;
+        const totalRec = (rc.monthly || 0) + (rc.quarterly || 0) + (rc.yearly || 0);
+        if (totalRec > 0) {
+          if ((rc.monthly || 0) >= (rc.quarterly || 0) && (rc.monthly || 0) >= (rc.yearly || 0)) domRec = 'monthly';
+          else if ((rc.quarterly || 0) >= (rc.yearly || 0)) domRec = 'quarterly';
+          else domRec = 'yearly';
+        }
+        let classes = 'subcat-item ' + s.category;
+        if (domRec !== 'none') classes += ' rec-' + domRec;
+        div.className = classes;
         const sign = s.type === 'expense' ? '-' : '+';
         let pctText = '';
         if (s.type === 'expense' && filteredExpTotal > 0) {
           const p = (s.total / filteredExpTotal) * 100;
           pctText = `<span class="pct-inline">${p.toFixed(1)}%</span>`;
         }
+        const recIcon = domRec === 'none' ? '' :
+          (domRec === 'monthly' ? ' 🔁' : (domRec === 'quarterly' ? ' 📅' : ' 🗓️'));
         div.innerHTML = `
-          <span class="name">${s.subcategory}<span class="count">(${s.count})</span></span>
+          <span class="name">${s.subcategory}${recIcon}<span class="count">(${s.count})</span></span>
           <span class="amt ${s.type}">${sign} ${fmt(s.total)}${pctText}</span>
         `;
         subcatGrid.appendChild(div);
@@ -615,6 +650,10 @@
         const catLabel = t.category === 'ecom' ? 'E-com' : (t.category === 'trade' ? 'Trading' : 'Personal');
         const rec = t.recurring || 'none';
         const recLabel = rec === 'none' ? 'One-time' : (rec.charAt(0).toUpperCase() + rec.slice(1));
+        // Tint row if it's a recurring commitment
+        if (rec === 'monthly') tr.className = 'recurring-row';
+        else if (rec === 'quarterly') tr.className = 'recurring-row quarterly';
+        else if (rec === 'yearly') tr.className = 'recurring-row yearly';
         tr.innerHTML = `
           <td>${t.date}</td>
           <td><span class="tag ${t.category}">${catLabel}</span></td>
