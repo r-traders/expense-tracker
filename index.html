@@ -37,6 +37,7 @@
   .card.ecom { border-left-color: #e67e22; }
   .card.trade { border-left-color: #27ae60; }
   .card.personal { border-left-color: #2980b9; }
+  .card.jobsites { border-left-color: #16a085; }
   .card.total { border-left-color: #8e44ad; }
   .card.net { border-left-color: #c0392b; }
   .card.commit { border-left-color: #f39c12; }
@@ -164,6 +165,7 @@
   .tag.ecom { background: #fdebd0; color: #b9770e; }
   .tag.trade { background: #d5f5e3; color: #1e8449; }
   .tag.personal { background: #d6eaf8; color: #1f618d; }
+  .tag.jobsites { background: #d1f2eb; color: #117864; }
   .tag.invest { background: #e8daef; color: #6c3483; }
   .tag.rec-monthly { background: #fef5e7; color: #b9770e; }
   .tag.rec-quarterly { background: #eaf2f8; color: #2874a6; }
@@ -259,6 +261,11 @@
       <div class="value" id="personalNet">₹0</div>
       <div class="pct" id="personalPct">0% of expenses</div>
     </div>
+    <div class="card jobsites">
+      <div class="label">Job Sites Spend</div>
+      <div class="value" id="jobsitesNet">₹0</div>
+      <div class="pct" id="jobsitesPct">0% of expenses</div>
+    </div>
     <div class="card total">
       <div class="label">Total Expenses</div>
       <div class="value" id="totalExp">₹0</div>
@@ -289,6 +296,7 @@
           <option value="ecom">E-commerce</option>
           <option value="trade">Stock Trading</option>
           <option value="personal">Personal / Household</option>
+          <option value="jobsites">Job Sites</option>
         </select>
       </div>
       <div>
@@ -333,6 +341,7 @@
         <option value="ecom">E-commerce</option>
         <option value="trade">Stock Trading</option>
         <option value="personal">Personal / Household</option>
+        <option value="jobsites">Job Sites</option>
       </select>
       <select id="filterType" onchange="render()">
         <option value="all">All Types</option>
@@ -401,6 +410,7 @@
           <option value="ecom">E-commerce</option>
           <option value="trade">Stock Trading</option>
           <option value="personal">Personal / Household</option>
+          <option value="jobsites">Job Sites</option>
         </select>
       </div>
       <div>
@@ -456,6 +466,7 @@
         'Cable / Internet / DTH',
         'OTT Subscription',
         'Claude Subscription',
+        'Job Sites',
         'Mobile / Phone Bill',
         'Water / Gas Bill',
         'Rent / Maintenance',
@@ -480,6 +491,20 @@
         'Other'
       ],
       income: ['Salary', 'Rental Income', 'Interest', 'Other Income']
+    },
+    jobsites: {
+      expense: [
+        'Job Portal Subscription',
+        'LinkedIn Premium',
+        'Naukri Subscription',
+        'Resume / CV Services',
+        'Certification / Course',
+        'Interview Travel',
+        'Professional Membership',
+        'Coaching / Mentoring',
+        'Other'
+      ],
+      income: ['Placement / Referral Bonus', 'Consulting Income', 'Other Income']
     }
   };
 
