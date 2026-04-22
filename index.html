@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Tracker — E-commerce & Stock Trading</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f6fa;
+    color: #2c3e50;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 {
+    font-size: 26px;
+    margin-bottom: 6px;
+    color: #1e3a5f;
+  }
+  .subtitle { color: #7f8c8d; margin-bottom: 20px; font-size: 14px; }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: #fff;
+    padding: 16px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border-left: 4px solid #3498db;
+  }
+  .card.ecom { border-left-color: #e67e22; }
+  .card.trade { border-left-color: #27ae60; }
+  .card.personal { border-left-color: #2980b9; }
+  .card.total { border-left-color: #8e44ad; }
+  .card.net { border-left-color: #c0392b; }
+  .card.commit { border-left-color: #f39c12; }
+  .card .label { font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .value { font-size: 22px; font-weight: 600; margin-top: 6px; }
+  .value.positive { color: #27ae60; }
+  .value.negative { color: #c0392b; }
+
+  .form-section, .table-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    margin-bottom: 20px;
+  }
+  h2 { font-size: 17px; margin-bottom: 14px; color: #1e3a5f; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    align-items: end;
+  }
+  label { display: block; font-size: 12px; color: #7f8c8d; margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #dfe4ea;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #3498db;
+  }
+  button {
+    padding: 9px 16px;
+    background: #3498db;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: #2980b9; }
+  button.danger { background: #e74c3c; }
+  button.danger:hover { background: #c0392b; }
+  button.secondary { background: #95a5a6; }
+  button.secondary:hover { background: #7f8c8d; }
+  button.small { padding: 5px 10px; font-size: 12px; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #fff;
+    padding: 24px;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { margin-bottom: 16px; }
+  .modal .form-grid { grid-template-columns: 1fr 1fr; }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    justify-content: flex-end;
+  }
+
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filters select, .filters input { width: auto; min-width: 140px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 1px solid #ecf0f1;
+  }
+  th { background: #f8f9fa; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #7f8c8d; }
+  tr:hover { background: #f8f9fa; }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag.ecom { background: #fdebd0; color: #b9770e; }
+  .tag.trade { background: #d5f5e3; color: #1e8449; }
+  .tag.personal { background: #d6eaf8; color: #1f618d; }
+  .tag.invest { background: #e8daef; color: #6c3483; }
+  .tag.rec-monthly { background: #fef5e7; color: #b9770e; }
+  .tag.rec-quarterly { background: #eaf2f8; color: #2874a6; }
+  .tag.rec-yearly { background: #f4ecf7; color: #6c3483; }
+  .tag.rec-none { background: #f4f6f7; color: #7f8c8d; }
+  .amount.expense { color: #c0392b; font-weight: 500; }
+  .amount.income { color: #27ae60; font-weight: 500; }
+
+  .empty {
+    text-align: center;
+    padding: 30px;
+    color: #95a5a6;
+    font-size: 14px;
+  }
+
+  /* Subcategory summary */
+  .subcat-summary {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .subcat-summary h3 {
+    font-size: 13px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .subcat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .subcat-item {
+    background: #fff;
+    padding: 10px 12px;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 3px solid #bdc3c7;
+    font-size: 13px;
+  }
+  .subcat-item.ecom { border-left-color: #e67e22; }
+  .subcat-item.trade { border-left-color: #27ae60; }
+  .subcat-item.personal { border-left-color: #2980b9; }
+  .subcat-item .name { color: #2c3e50; font-weight: 500; }
+  .subcat-item .amt { font-weight: 600; }
+  .subcat-item .amt.expense { color: #c0392b; }
+  .subcat-item .amt.income { color: #27ae60; }
+  .subcat-item .count {
+    font-size: 11px;
+    color: #95a5a6;
+    margin-left: 6px;
+  }
+
+  .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    th, td { padding: 8px 5px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💰 Expense Tracker</h1>
+  <p class="subtitle">E-commerce · Stock Trading · Personal — amounts in ₹ (INR)</p>
+
+  <div class="summary">
+    <div class="card ecom">
+      <div class="label">E-commerce Net</div>
+      <div class="value" id="ecomNet">₹0</div>
+    </div>
+    <div class="card trade">
+      <div class="label">Trading Net</div>
+      <div class="value" id="tradeNet">₹0</div>
+    </div>
+    <div class="card personal">
+      <div class="label">Personal Spend</div>
+      <div class="value" id="personalNet">₹0</div>
+    </div>
+    <div class="card total">
+      <div class="label">Total Expenses</div>
+      <div class="value" id="totalExp">₹0</div>
+    </div>
+    <div class="card net">
+      <div class="label">Overall Net</div>
+      <div class="value" id="overallNet">₹0</div>
+    </div>
+    <div class="card commit">
+      <div class="label">Fixed Monthly Commitments</div>
+      <div class="value" id="monthlyCommit">₹0</div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2>Add Transaction</h2>
+    <div class="form-grid">
+      <div>
+        <label>Date</label>
+        <input type="date" id="date">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="category">
+          <option value="ecom">E-commerce</option>
+          <option value="trade">Stock Trading</option>
+          <option value="personal">Personal / Household</option>
+        </select>
+      </div>
+      <div>
+        <label>Type</label>
+        <select id="type">
+          <option value="expense">Expense</option>
+          <option value="income">Income / P&amp;L</option>
+        </select>
+      </div>
+      <div>
+        <label>Subcategory</label>
+        <select id="subcategory"></select>
+      </div>
+      <div>
+        <label>Amount (₹)</label>
+        <input type="number" id="amount" step="0.01" placeholder="0.00">
+      </div>
+      <div>
+        <label>Recurring</label>
+        <select id="recurring">
+          <option value="none">One-time</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </div>
+      <div style="grid-column: span 2;">
+        <label>Description (optional)</label>
+        <input type="text" id="description" placeholder="e.g. Facebook ads, Nifty futures P&L">
+      </div>
+      <div>
+        <button onclick="addTransaction()">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-section">
+    <h2>Transactions</h2>
+    <div class="filters">
+      <select id="filterCategory" onchange="render()">
+        <option value="all">All Categories</option>
+        <option value="ecom">E-commerce</option>
+        <option value="trade">Stock Trading</option>
+        <option value="personal">Personal / Household</option>
+      </select>
+      <select id="filterType" onchange="render()">
+        <option value="all">All Types</option>
+        <option value="expense">Expenses</option>
+        <option value="income">Income</option>
+      </select>
+      <select id="filterRecurring" onchange="render()">
+        <option value="all">All Frequencies</option>
+        <option value="none">One-time only</option>
+        <option value="recurring">Recurring only</option>
+        <option value="monthly">Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="yearly">Yearly</option>
+      </select>
+      <input type="month" id="filterMonth" onchange="render()">
+      <button class="small" onclick="clearFilters()">Clear Filters</button>
+    </div>
+
+    <div class="subcat-summary">
+      <h3>📊 Subcategory-wise Totals <span style="text-transform:none;font-weight:normal;color:#95a5a6;">(respects filters above)</span></h3>
+      <div class="subcat-grid" id="subcatGrid"></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Subcategory</th>
+          <th>Description</th>
+          <th>Recurring</th>
+          <th style="text-align:right;">Amount</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="txBody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="small" onclick="exportCSV()">⬇ Export CSV (Backup)</button>
+      <button class="small secondary" onclick="document.getElementById('importFile').click()">⬆ Import CSV</button>
+      <input type="file" id="importFile" accept=".csv" style="display:none" onchange="importCSV(event)">
+      <button class="small danger" onclick="clearAll()">🗑 Clear All Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h2>✏️ Edit Transaction</h2>
+    <div class="form-grid">
+      <div>
+        <label>Date</label>
+        <input type="date" id="editDate">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="editCategory">
+          <option value="ecom">E-commerce</option>
+          <option value="trade">Stock Trading</option>
+          <option value="personal">Personal / Household</option>
+        </select>
+      </div>
+      <div>
+        <label>Type</label>
+        <select id="editType">
+          <option value="expense">Expense</option>
+          <option value="income">Income / P&amp;L</option>
+        </select>
+      </div>
+      <div>
+        <label>Subcategory</label>
+        <select id="editSubcategory"></select>
+      </div>
+      <div>
+        <label>Amount (₹)</label>
+        <input type="number" id="editAmount" step="0.01">
+      </div>
+      <div>
+        <label>Recurring</label>
+        <select id="editRecurring">
+          <option value="none">One-time</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </div>
+      <div style="grid-column: span 2;">
+        <label>Description</label>
+        <input type="text" id="editDescription">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeEdit()">Cancel</button>
+      <button onclick="saveEdit()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUBCATS = {
+    ecom: {
+      expense: ['Inventory / COGS', 'Ads & Marketing', 'Shipping & Logistics', 'Platform Fees', 'Packaging', 'Returns & Refunds', 'Software / Tools', 'Other'],
+      income: ['Sales Revenue', 'Other Income']
+    },
+    trade: {
+      expense: ['Brokerage', 'STT / CTT', 'Exchange Charges', 'GST', 'SEBI / Stamp Duty', 'Loss', 'Other'],
+      income: ['Profit', 'Dividend', 'Other Income']
+    },
+    personal: {
+      expense: [
+        'Petrol / Fuel',
+        'Electricity Bill',
+        'Cable / Internet / DTH',
+        'Mobile / Phone Bill',
+        'Water / Gas Bill',
+        'Rent / Maintenance',
+        'Food & Dining',
+        'Grocery',
+        'Life Insurance Premium',
+        'Health Insurance Premium',
+        'Vehicle Insurance',
+        'PPF Contribution',
+        'SIP / Mutual Fund',
+        'EMI / Loan',
+        'Medical / Healthcare',
+        'Education',
+        'Household / Repairs',
+        'Entertainment',
+        'Travel',
+        'Other'
+      ],
+      income: ['Salary', 'Rental Income', 'Interest', 'Other Income']
+    }
+  };
+
+  let transactions = [];
+
+  async function loadData() {
+    try {
+      const res = await window.storage.get('transactions');
+      if (res && res.value) transactions = JSON.parse(res.value);
+    } catch (e) {
+      transactions = [];
+    }
+    render();
+  }
+
+  async function saveData() {
+    try {
+      await window.storage.set('transactions', JSON.stringify(transactions));
+    } catch (e) {
+      console.error('Save failed:', e);
+    }
+  }
+
+  function updateSubcats() {
+    const cat = document.getElementById('category').value;
+    const type = document.getElementById('type').value;
+    const sub = document.getElementById('subcategory');
+    sub.innerHTML = '';
+    SUBCATS[cat][type].forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      sub.appendChild(o);
+    });
+  }
+
+  document.getElementById('category').addEventListener('change', updateSubcats);
+  document.getElementById('type').addEventListener('change', updateSubcats);
+
+  async function addTransaction() {
+    const date = document.getElementById('date').value;
+    const category = document.getElementById('category').value;
+    const type = document.getElementById('type').value;
+    const subcategory = document.getElementById('subcategory').value;
+    const amount = parseFloat(document.getElementById('amount').value);
+    const recurring = document.getElementById('recurring').value;
+    const description = document.getElementById('description').value;
+
+    if (!date) { alert('Please select a date'); return; }
+    if (!amount || amount <= 0) { alert('Please enter a valid amount'); return; }
+
+    transactions.push({
+      id: Date.now(),
+      date, category, type, subcategory, amount, recurring, description
+    });
+
+    document.getElementById('amount').value = '';
+    document.getElementById('description').value = '';
+    document.getElementById('recurring').value = 'none';
+
+    await saveData();
+    render();
+  }
+
+  async function deleteTx(id) {
+    if (!confirm('Delete this transaction?')) return;
+    transactions = transactions.filter(t => t.id !== id);
+    await saveData();
+    render();
+  }
+
+  function clearFilters() {
+    document.getElementById('filterCategory').value = 'all';
+    document.getElementById('filterType').value = 'all';
+    document.getElementById('filterRecurring').value = 'all';
+    document.getElementById('filterMonth').value = '';
+    render();
+  }
+
+  async function clearAll() {
+    if (!confirm('Delete ALL transactions? This cannot be undone.')) return;
+    transactions = [];
+    await saveData();
+    render();
+  }
+
+  function fmt(n) {
+    return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function render() {
+    const fc = document.getElementById('filterCategory').value;
+    const ft = document.getElementById('filterType').value;
+    const fr = document.getElementById('filterRecurring').value;
+    const fm = document.getElementById('filterMonth').value;
+
+    let filtered = transactions.slice();
+    if (fc !== 'all') filtered = filtered.filter(t => t.category === fc);
+    if (ft !== 'all') filtered = filtered.filter(t => t.type === ft);
+    if (fr === 'recurring') filtered = filtered.filter(t => t.recurring && t.recurring !== 'none');
+    else if (fr !== 'all') filtered = filtered.filter(t => (t.recurring || 'none') === fr);
+    if (fm) filtered = filtered.filter(t => t.date.startsWith(fm));
+
+    filtered.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+    // Subcategory-wise totals (based on filtered data)
+    const subcatGrid = document.getElementById('subcatGrid');
+    subcatGrid.innerHTML = '';
+    const subcatMap = {};
+    filtered.forEach(t => {
+      const key = t.category + '||' + t.subcategory + '||' + t.type;
+      if (!subcatMap[key]) {
+        subcatMap[key] = { category: t.category, subcategory: t.subcategory, type: t.type, total: 0, count: 0 };
+      }
+      subcatMap[key].total += t.amount;
+      subcatMap[key].count += 1;
+    });
+    const subcatList = Object.values(subcatMap).sort((a, b) => b.total - a.total);
+    if (subcatList.length === 0) {
+      subcatGrid.innerHTML = '<div style="color:#95a5a6;font-size:13px;padding:6px;">No data for selected filters.</div>';
+    } else {
+      subcatList.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'subcat-item ' + s.category;
+        const sign = s.type === 'expense' ? '-' : '+';
+        div.innerHTML = `
+          <span class="name">${s.subcategory}<span class="count">(${s.count})</span></span>
+          <span class="amt ${s.type}">${sign} ${fmt(s.total)}</span>
+        `;
+        subcatGrid.appendChild(div);
+      });
+    }
+
+    const tbody = document.getElementById('txBody');
+    tbody.innerHTML = '';
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet. Add one above to get started.</td></tr>';
+    } else {
+      filtered.forEach(t => {
+        const tr = document.createElement('tr');
+        const sign = t.type === 'expense' ? '-' : '+';
+        const catLabel = t.category === 'ecom' ? 'E-com' : (t.category === 'trade' ? 'Trading' : 'Personal');
+        const rec = t.recurring || 'none';
+        const recLabel = rec === 'none' ? 'One-time' : (rec.charAt(0).toUpperCase() + rec.slice(1));
+        tr.innerHTML = `
+          <td>${t.date}</td>
+          <td><span class="tag ${t.category}">${catLabel}</span></td>
+          <td>${t.subcategory}</td>
+          <td>${t.description || '—'}</td>
+          <td><span class="tag rec-${rec}">${recLabel}</span></td>
+          <td style="text-align:right;" class="amount ${t.type}">${sign} ${fmt(t.amount)}</td>
+          <td style="white-space:nowrap;">
+            <button class="small secondary" onclick="openEdit(${t.id})">Edit</button>
+            <button class="small danger" onclick="deleteTx(${t.id})">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Summary always on ALL data (not filtered)
+    let ecomIn = 0, ecomOut = 0, tradeIn = 0, tradeOut = 0, persIn = 0, persOut = 0;
+    let monthlyCommit = 0;
+    transactions.forEach(t => {
+      if (t.category === 'ecom') {
+        if (t.type === 'income') ecomIn += t.amount; else ecomOut += t.amount;
+      } else if (t.category === 'trade') {
+        if (t.type === 'income') tradeIn += t.amount; else tradeOut += t.amount;
+      } else {
+        if (t.type === 'income') persIn += t.amount; else persOut += t.amount;
+      }
+      // Normalize all recurring expenses to monthly equivalent
+      if (t.type === 'expense' && t.recurring && t.recurring !== 'none') {
+        if (t.recurring === 'monthly') monthlyCommit += t.amount;
+        else if (t.recurring === 'quarterly') monthlyCommit += t.amount / 3;
+        else if (t.recurring === 'yearly') monthlyCommit += t.amount / 12;
+      }
+    });
+
+    const ecomNet = ecomIn - ecomOut;
+    const tradeNet = tradeIn - tradeOut;
+    const personalNet = persIn - persOut;
+    const overall = ecomNet + tradeNet + personalNet;
+
+    const setVal = (id, v) => {
+      const el = document.getElementById(id);
+      el.textContent = fmt(v);
+      el.classList.remove('positive', 'negative');
+      if (v > 0) el.classList.add('positive');
+      else if (v < 0) el.classList.add('negative');
+    };
+    setVal('ecomNet', ecomNet);
+    setVal('tradeNet', tradeNet);
+    setVal('personalNet', personalNet);
+    setVal('overallNet', overall);
+    document.getElementById('totalExp').textContent = fmt(ecomOut + tradeOut + persOut);
+    document.getElementById('monthlyCommit').textContent = fmt(monthlyCommit);
+  }
+
+  function exportCSV() {
+    if (transactions.length === 0) { alert('No transactions to export'); return; }
+    const header = 'Date,Category,Type,Subcategory,Description,Recurring,Amount\n';
+    const catLabel = (c) => c === 'ecom' ? 'E-commerce' : (c === 'trade' ? 'Stock Trading' : 'Personal');
+    const rows = transactions.map(t =>
+      `${t.date},${catLabel(t.category)},${t.type},"${t.subcategory}","${(t.description || '').replace(/"/g, '""')}",${t.recurring || 'none'},${t.amount}`
+    ).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'expenses_' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ========== EDIT FUNCTIONS ==========
+  let editingId = null;
+
+  function populateEditSubcats() {
+    const cat = document.getElementById('editCategory').value;
+    const type = document.getElementById('editType').value;
+    const sub = document.getElementById('editSubcategory');
+    const currentVal = sub.value;
+    sub.innerHTML = '';
+    SUBCATS[cat][type].forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      sub.appendChild(o);
+    });
+    // try restoring previous value if still valid
+    if (SUBCATS[cat][type].includes(currentVal)) sub.value = currentVal;
+  }
+
+  document.getElementById('editCategory').addEventListener('change', populateEditSubcats);
+  document.getElementById('editType').addEventListener('change', populateEditSubcats);
+
+  function openEdit(id) {
+    const t = transactions.find(x => x.id === id);
+    if (!t) return;
+    editingId = id;
+    document.getElementById('editDate').value = t.date;
+    document.getElementById('editCategory').value = t.category;
+    document.getElementById('editType').value = t.type;
+    populateEditSubcats();
+    document.getElementById('editSubcategory').value = t.subcategory;
+    document.getElementById('editAmount').value = t.amount;
+    document.getElementById('editRecurring').value = t.recurring || 'none';
+    document.getElementById('editDescription').value = t.description || '';
+    document.getElementById('editModal').classList.add('active');
+  }
+
+  function closeEdit() {
+    editingId = null;
+    document.getElementById('editModal').classList.remove('active');
+  }
+
+  async function saveEdit() {
+    if (editingId === null) return;
+    const idx = transactions.findIndex(x => x.id === editingId);
+    if (idx === -1) return;
+
+    const date = document.getElementById('editDate').value;
+    const amount = parseFloat(document.getElementById('editAmount').value);
+    if (!date) { alert('Please select a date'); return; }
+    if (!amount || amount <= 0) { alert('Please enter a valid amount'); return; }
+
+    transactions[idx] = {
+      ...transactions[idx],
+      date,
+      category: document.getElementById('editCategory').value,
+      type: document.getElementById('editType').value,
+      subcategory: document.getElementById('editSubcategory').value,
+      amount,
+      recurring: document.getElementById('editRecurring').value,
+      description: document.getElementById('editDescription').value
+    };
+
+    await saveData();
+    closeEdit();
+    render();
+  }
+
+  // Close modal on overlay click
+  document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEdit();
+  });
+
+  // ========== IMPORT CSV ==========
+  async function importCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) { alert('CSV is empty'); return; }
+
+        // Parse CSV respecting quoted fields
+        function parseLine(line) {
+          const result = [];
+          let cur = '', inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+            else if (ch === '"') { inQ = !inQ; }
+            else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+            else cur += ch;
+          }
+          result.push(cur);
+          return result;
+        }
+
+        const catReverse = { 'E-commerce': 'ecom', 'Stock Trading': 'trade', 'Personal': 'personal' };
+        const imported = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseLine(lines[i]);
+          if (cols.length < 7) continue;
+          imported.push({
+            id: Date.now() + i,
+            date: cols[0],
+            category: catReverse[cols[1]] || 'personal',
+            type: cols[2],
+            subcategory: cols[3],
+            description: cols[4],
+            recurring: cols[5] || 'none',
+            amount: parseFloat(cols[6]) || 0
+          });
+        }
+
+        if (imported.length === 0) { alert('No valid rows found'); return; }
+
+        const choice = confirm(
+          `Found ${imported.length} transactions in the CSV.\n\n` +
+          `Click OK to REPLACE all current data with imported data.\n` +
+          `Click Cancel to MERGE (add imported on top of existing).`
+        );
+
+        if (choice) {
+          transactions = imported;
+        } else {
+          transactions = transactions.concat(imported);
+        }
+
+        await saveData();
+        render();
+        alert('Import successful! ' + imported.length + ' transactions loaded.');
+      } catch (err) {
+        alert('Failed to import CSV: ' + err.message);
+      }
+      event.target.value = ''; // reset so same file can be re-imported
+    };
+    reader.readAsText(file);
+  }
+
+  // Init
+  document.getElementById('date').valueAsDate = new Date();
+  updateSubcats();
+  loadData();
+</script>
+</body>
+</html>
