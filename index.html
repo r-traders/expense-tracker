@@ -460,6 +460,7 @@
         'Mobile / Phone Bill',
         'Water / Gas Bill',
         'Rent / Maintenance',
+        'Maid Expenses',
         'Bank Charges',
         'Food & Dining',
         'Grocery',
@@ -468,20 +469,22 @@
         'Vehicle Insurance',
         'PPF Contribution',
         'SIP / Mutual Fund',
-        'EMI / Loan',
-        'Education Loan',
+        'Personal Loan EMI',
+        'Aarav Education Loan EMI',
         'Family Loan Repayment',
         'Father Support',
         'Father-in-Law Support',
         'Sayesha Education',
         'Aarav Education',
-        'Aarav Remittance Charges',
+        'Aarav Remittance',
         'Medical / Healthcare',
         'Education',
         'Household / Repairs',
         'Laptop / Electronics',
         'Entertainment',
+        'Shopping',
         'Travel',
+        'Astrology',
         'Charity / Donation',
         'Other'
       ],
@@ -509,6 +512,21 @@
       // Rename old "OTT Subscription" to new "OTT / Other Subscription"
       if (t.subcategory === 'OTT Subscription') {
         t.subcategory = 'OTT / Other Subscription';
+        migrated++;
+      }
+      // Rename "Aarav Remittance Charges" to "Aarav Remittance"
+      if (t.subcategory === 'Aarav Remittance Charges') {
+        t.subcategory = 'Aarav Remittance';
+        migrated++;
+      }
+      // Rename "Education Loan" to "Aarav Education Loan EMI"
+      if (t.subcategory === 'Education Loan') {
+        t.subcategory = 'Aarav Education Loan EMI';
+        migrated++;
+      }
+      // Rename "EMI / Loan" to "Personal Loan EMI"
+      if (t.subcategory === 'EMI / Loan') {
+        t.subcategory = 'Personal Loan EMI';
         migrated++;
       }
     });
