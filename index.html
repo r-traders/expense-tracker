@@ -442,53 +442,81 @@
 <script>
   const SUBCATS = {
     ecom: {
-      expense: ['Inventory / COGS', 'Ads & Marketing', 'Shipping & Logistics', 'Platform Fees', 'Packaging', 'Returns & Refunds', 'Software / Tools', 'Other'],
-      income: ['Sales Revenue', 'Other Income']
+      expense: [
+        'Ads & Marketing',
+        'Inventory / COGS',
+        'Packaging',
+        'Platform Fees',
+        'Returns & Refunds',
+        'Shipping & Logistics',
+        'Software / Tools',
+        'Other'
+      ],
+      income: [
+        'Sales Revenue',
+        'Other Income'
+      ]
     },
     trade: {
-      expense: ['Brokerage', 'STT / CTT', 'Exchange Charges', 'Platform Charges', 'GST', 'SEBI / Stamp Duty', 'Course Fees', 'Loss', 'Other'],
-      income: ['Profit', 'Dividend', 'Other Income']
+      expense: [
+        'Brokerage',
+        'Course Fees',
+        'Exchange Charges',
+        'GST',
+        'Loss',
+        'Platform Charges',
+        'SEBI / Stamp Duty',
+        'STT / CTT',
+        'Other'
+      ],
+      income: [
+        'Dividend',
+        'Profit',
+        'Other Income'
+      ]
     },
     personal: {
       expense: [
-        'Petrol / Fuel',
-        'Electricity Bill',
-        'Cable / Internet / DTH',
-        'OTT / Other Subscription',
-        'Claude Subscription',
-        'Job Sites',
-        'Mobile / Phone Bill',
-        'Water / Gas Bill',
-        'Rent / Maintenance',
-        'Maid Expenses',
+        'Aarav Education',
+        'Aarav Education Loan EMI',
+        'Aarav Remittance',
+        'Astrology',
         'Bank Charges',
+        'Cable / Internet / DTH',
+        'Charity / Donation',
+        'Claude Subscription',
+        'Electricity Bill',
+        'Entertainment',
+        'Family Loan Payment',
+        'Father Support',
         'Food & Dining',
         'Grocery',
-        'Life Insurance Premium',
         'Health Insurance Premium',
-        'Vehicle Insurance',
-        'PPF Contribution',
-        'SIP / Mutual Fund',
-        'Personal Loan EMI',
-        'Aarav Education Loan EMI',
-        'Family Loan Repayment',
-        'Father Support',
-        'Father-in-Law Support',
-        'Sayesha Education',
-        'Aarav Education',
-        'Aarav Remittance',
-        'Medical / Healthcare',
-        'Education',
         'Household / Repairs',
+        'Job Search Services',
         'Laptop / Electronics',
-        'Entertainment',
+        'Life Insurance Premium',
+        'Maid Expenses',
+        'Medical / Healthcare',
+        'Mobile / Phone Bill',
+        'OTT / Other Subscription',
+        'Personal Loan EMI',
+        'Petrol Bill',
+        'PPF Contribution',
+        'Rent / Maintenance',
+        'Sayesha Education',
         'Shopping',
+        'SIP / Mutual Fund',
         'Travel',
-        'Astrology',
-        'Charity / Donation',
-        'Other'
+        'Vehicle Insurance',
+        'Water / Gas Bill'
       ],
-      income: ['Salary', 'Rental Income', 'Interest', 'Other Income']
+      income: [
+        'Interest',
+        'Rental Income',
+        'Salary',
+        'Other Income'
+      ]
     }
   };
 
@@ -506,7 +534,12 @@
     transactions.forEach(t => {
       if (t.category === 'jobsites') {
         t.category = 'personal';
-        t.subcategory = 'Job Sites';
+        t.subcategory = 'Job Search Services';
+        migrated++;
+      }
+      // Rename "Job Sites" subcategory to "Job Search Services"
+      if (t.subcategory === 'Job Sites') {
+        t.subcategory = 'Job Search Services';
         migrated++;
       }
       // Rename old "OTT Subscription" to new "OTT / Other Subscription"
@@ -527,6 +560,16 @@
       // Rename "EMI / Loan" to "Personal Loan EMI"
       if (t.subcategory === 'EMI / Loan') {
         t.subcategory = 'Personal Loan EMI';
+        migrated++;
+      }
+      // Rename "Petrol / Fuel" to "Petrol Bill"
+      if (t.subcategory === 'Petrol / Fuel') {
+        t.subcategory = 'Petrol Bill';
+        migrated++;
+      }
+      // Rename "Family Loan Repayment" to "Family Loan Payment"
+      if (t.subcategory === 'Family Loan Repayment') {
+        t.subcategory = 'Family Loan Payment';
         migrated++;
       }
     });
