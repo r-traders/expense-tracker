@@ -40,6 +40,7 @@
   .card.total { border-left-color: #8e44ad; }
   .card.net { border-left-color: #c0392b; }
   .card.commit { border-left-color: #f39c12; }
+  .card.obligation { border-left-color: #d35400; }
   .card .label { font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
   .card .value { font-size: 22px; font-weight: 600; margin-top: 6px; }
   .card .pct {
@@ -274,6 +275,11 @@
       <div class="value" id="monthlyCommit">₹0</div>
       <div class="pct" id="commitPct">0% of monthly spend</div>
     </div>
+    <div class="card obligation">
+      <div class="label">Total Remaining Obligation</div>
+      <div class="value" id="totalObligation">₹0</div>
+      <div class="pct" id="obligationNote">finite-tenure EMIs only</div>
+    </div>
   </div>
 
   <div class="form-section">
@@ -314,6 +320,10 @@
           <option value="quarterly">Quarterly</option>
           <option value="yearly">Yearly</option>
         </select>
+      </div>
+      <div>
+        <label>Tenure (# payments)</label>
+        <input type="number" id="tenure" min="1" step="1" placeholder="blank = ongoing">
       </div>
       <div style="grid-column: span 2;">
         <label>Description (optional)</label>
@@ -426,6 +436,10 @@
           <option value="quarterly">Quarterly</option>
           <option value="yearly">Yearly</option>
         </select>
+      </div>
+      <div>
+        <label>Tenure (# payments)</label>
+        <input type="number" id="editTenure" min="1" step="1" placeholder="blank = ongoing">
       </div>
       <div style="grid-column: span 2;">
         <label>Description</label>
@@ -611,6 +625,8 @@
     const subcategory = document.getElementById('subcategory').value;
     const amount = parseFloat(document.getElementById('amount').value);
     const recurring = document.getElementById('recurring').value;
+    const tenureRaw = document.getElementById('tenure').value;
+    const tenure = tenureRaw ? parseInt(tenureRaw) : null;
     const description = document.getElementById('description').value;
 
     if (!date) { alert('Please select a date'); return; }
@@ -618,12 +634,13 @@
 
     transactions.push({
       id: Date.now(),
-      date, category, type, subcategory, amount, recurring, description
+      date, category, type, subcategory, amount, recurring, tenure, description
     });
 
     document.getElementById('amount').value = '';
     document.getElementById('description').value = '';
     document.getElementById('recurring').value = 'none';
+    document.getElementById('tenure').value = '';
 
     await saveData();
     render();
@@ -656,6 +673,19 @@
   }
 
   function render() {
+    const today = new Date();
+    // Helper: compute how many payments have elapsed for a recurring entry
+    function paymentsElapsed(startDateStr, freq) {
+      const start = new Date(startDateStr);
+      if (isNaN(start)) return 0;
+      let months = (today.getFullYear() - start.getFullYear()) * 12 + (today.getMonth() - start.getMonth());
+      if (today.getDate() < start.getDate()) months--;
+      months = Math.max(0, months);
+      if (freq === 'monthly') return months + 1;
+      if (freq === 'quarterly') return Math.floor(months / 3) + 1;
+      if (freq === 'yearly') return Math.floor(months / 12) + 1;
+      return 0;
+    }
     const fc = document.getElementById('filterCategory').value;
     const ft = document.getElementById('filterType').value;
     const fr = document.getElementById('filterRecurring').value;
@@ -734,11 +764,29 @@
         const sign = t.type === 'expense' ? '-' : '+';
         const catLabel = t.category === 'ecom' ? 'E-com' : (t.category === 'trade' ? 'Trading' : 'Personal');
         const rec = t.recurring || 'none';
-        const recLabel = rec === 'none' ? 'One-time' : (rec.charAt(0).toUpperCase() + rec.slice(1));
-        // Tint row if it's a recurring commitment
-        if (rec === 'monthly') tr.className = 'recurring-row';
-        else if (rec === 'quarterly') tr.className = 'recurring-row quarterly';
-        else if (rec === 'yearly') tr.className = 'recurring-row yearly';
+        let recLabel = rec === 'none' ? 'One-time' : (rec.charAt(0).toUpperCase() + rec.slice(1));
+        // Add tenure progress if set
+        let tenureComplete = false;
+        if (t.tenure && t.tenure > 0 && rec !== 'none') {
+          const elapsed = paymentsElapsed(t.date, rec);
+          const paidCount = Math.min(elapsed, t.tenure);
+          if (elapsed >= t.tenure) {
+            recLabel += ` · ✓ ${t.tenure}/${t.tenure} done`;
+            tenureComplete = true;
+          } else {
+            recLabel += ` · ${paidCount} of ${t.tenure}`;
+          }
+        } else if (rec !== 'none') {
+          recLabel += ' · ongoing';
+        }
+        // Tint row if it's a recurring commitment (and not yet complete)
+        if (!tenureComplete) {
+          if (rec === 'monthly') tr.className = 'recurring-row';
+          else if (rec === 'quarterly') tr.className = 'recurring-row quarterly';
+          else if (rec === 'yearly') tr.className = 'recurring-row yearly';
+        } else {
+          tr.style.opacity = '0.55'; // visually dim completed tenure rows
+        }
         tr.innerHTML = `
           <td>${t.date}</td>
           <td><span class="tag ${t.category}">${catLabel}</span></td>
@@ -758,6 +806,8 @@
     // Summary always on ALL data (not filtered)
     let ecomIn = 0, ecomOut = 0, tradeIn = 0, tradeOut = 0, persIn = 0, persOut = 0;
     let monthlyCommit = 0;
+    let totalRemainingObligation = 0;
+
     transactions.forEach(t => {
       if (t.category === 'ecom') {
         if (t.type === 'income') ecomIn += t.amount; else ecomOut += t.amount;
@@ -766,11 +816,27 @@
       } else {
         if (t.type === 'income') persIn += t.amount; else persOut += t.amount;
       }
-      // Normalize all recurring expenses to monthly equivalent
+
+      // Recurring commitment calculations
       if (t.type === 'expense' && t.recurring && t.recurring !== 'none') {
-        if (t.recurring === 'monthly') monthlyCommit += t.amount;
-        else if (t.recurring === 'quarterly') monthlyCommit += t.amount / 3;
-        else if (t.recurring === 'yearly') monthlyCommit += t.amount / 12;
+        // Check if tenure is set and already completed
+        let stillActive = true;
+        let paymentsLeft = null;
+        if (t.tenure && t.tenure > 0) {
+          const elapsed = paymentsElapsed(t.date, t.recurring);
+          paymentsLeft = Math.max(0, t.tenure - elapsed);
+          if (paymentsLeft <= 0) stillActive = false;
+        }
+        // Only count still-active commitments in monthly burden
+        if (stillActive) {
+          if (t.recurring === 'monthly') monthlyCommit += t.amount;
+          else if (t.recurring === 'quarterly') monthlyCommit += t.amount / 3;
+          else if (t.recurring === 'yearly') monthlyCommit += t.amount / 12;
+          // Remaining obligation: only if tenure is specified
+          if (paymentsLeft !== null) {
+            totalRemainingObligation += t.amount * paymentsLeft;
+          }
+        }
       }
     });
 
@@ -792,6 +858,7 @@
     setVal('overallNet', overall);
     document.getElementById('totalExp').textContent = fmt(ecomOut + tradeOut + persOut);
     document.getElementById('monthlyCommit').textContent = fmt(monthlyCommit);
+    document.getElementById('totalObligation').textContent = fmt(totalRemainingObligation);
 
     // Category-wise expense percentages (of total expenses)
     const totalExpAll = ecomOut + tradeOut + persOut;
@@ -812,10 +879,10 @@
 
   function exportCSV() {
     if (transactions.length === 0) { alert('No transactions to export'); return; }
-    const header = 'Date,Category,Type,Subcategory,Description,Recurring,Amount\n';
+    const header = 'Date,Category,Type,Subcategory,Description,Recurring,Tenure,Amount\n';
     const catLabel = (c) => c === 'ecom' ? 'E-commerce' : (c === 'trade' ? 'Stock Trading' : 'Personal');
     const rows = transactions.map(t =>
-      `${t.date},${catLabel(t.category)},${t.type},"${t.subcategory}","${(t.description || '').replace(/"/g, '""')}",${t.recurring || 'none'},${t.amount}`
+      `${t.date},${catLabel(t.category)},${t.type},"${t.subcategory}","${(t.description || '').replace(/"/g, '""')}",${t.recurring || 'none'},${t.tenure || ''},${t.amount}`
     ).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -858,6 +925,7 @@
     document.getElementById('editSubcategory').value = t.subcategory;
     document.getElementById('editAmount').value = t.amount;
     document.getElementById('editRecurring').value = t.recurring || 'none';
+    document.getElementById('editTenure').value = t.tenure || '';
     document.getElementById('editDescription').value = t.description || '';
     document.getElementById('editModal').classList.add('active');
   }
@@ -885,6 +953,7 @@
       subcategory: document.getElementById('editSubcategory').value,
       amount,
       recurring: document.getElementById('editRecurring').value,
+      tenure: document.getElementById('editTenure').value ? parseInt(document.getElementById('editTenure').value) : null,
       description: document.getElementById('editDescription').value
     };
 
@@ -944,6 +1013,7 @@
           subcategory: findCol(['subcategory', 'subcat']),
           description: findCol(['description', 'desc', 'note', 'notes']),
           recurring: findCol(['recurring', 'frequency', 'freq']),
+          tenure: findCol(['tenure', 'months', 'numpayments', 'payments']),
           amount: findCol(['amount', 'amt', 'value'])
         };
 
