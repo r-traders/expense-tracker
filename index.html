@@ -325,6 +325,10 @@
         <label>Tenure (# payments)</label>
         <input type="number" id="tenure" min="1" step="1" placeholder="blank = ongoing">
       </div>
+      <div>
+        <label>Start Date <span style="color:#95a5a6;font-weight:normal;">(recurring only)</span></label>
+        <input type="date" id="startDate">
+      </div>
       <div style="grid-column: span 2;">
         <label>Description (optional)</label>
         <input type="text" id="description" placeholder="e.g. Facebook ads, Nifty futures P&L">
@@ -440,6 +444,10 @@
       <div>
         <label>Tenure (# payments)</label>
         <input type="number" id="editTenure" min="1" step="1" placeholder="blank = ongoing">
+      </div>
+      <div>
+        <label>Start Date <span style="color:#95a5a6;font-weight:normal;">(recurring only)</span></label>
+        <input type="date" id="editStartDate">
       </div>
       <div style="grid-column: span 2;">
         <label>Description</label>
@@ -627,6 +635,7 @@
     const recurring = document.getElementById('recurring').value;
     const tenureRaw = document.getElementById('tenure').value;
     const tenure = tenureRaw ? parseInt(tenureRaw) : null;
+    const startDate = document.getElementById('startDate').value || null;
     const description = document.getElementById('description').value;
 
     if (!date) { alert('Please select a date'); return; }
@@ -634,13 +643,14 @@
 
     transactions.push({
       id: Date.now(),
-      date, category, type, subcategory, amount, recurring, tenure, description
+      date, category, type, subcategory, amount, recurring, tenure, startDate, description
     });
 
     document.getElementById('amount').value = '';
     document.getElementById('description').value = '';
     document.getElementById('recurring').value = 'none';
     document.getElementById('tenure').value = '';
+    document.getElementById('startDate').value = '';
 
     await saveData();
     render();
@@ -768,7 +778,8 @@
         // Add tenure progress if set
         let tenureComplete = false;
         if (t.tenure && t.tenure > 0 && rec !== 'none') {
-          const elapsed = paymentsElapsed(t.date, rec);
+          const anchorDate = t.startDate || t.date;
+          const elapsed = paymentsElapsed(anchorDate, rec);
           const paidCount = Math.min(elapsed, t.tenure);
           if (elapsed >= t.tenure) {
             recLabel += ` · ✓ ${t.tenure}/${t.tenure} done`;
@@ -823,7 +834,8 @@
         let stillActive = true;
         let paymentsLeft = null;
         if (t.tenure && t.tenure > 0) {
-          const elapsed = paymentsElapsed(t.date, t.recurring);
+          const anchorDate = t.startDate || t.date;
+          const elapsed = paymentsElapsed(anchorDate, t.recurring);
           paymentsLeft = Math.max(0, t.tenure - elapsed);
           if (paymentsLeft <= 0) stillActive = false;
         }
@@ -879,10 +891,10 @@
 
   function exportCSV() {
     if (transactions.length === 0) { alert('No transactions to export'); return; }
-    const header = 'Date,Category,Type,Subcategory,Description,Recurring,Tenure,Amount\n';
+    const header = 'Date,Category,Type,Subcategory,Description,Recurring,Tenure,StartDate,Amount\n';
     const catLabel = (c) => c === 'ecom' ? 'E-commerce' : (c === 'trade' ? 'Stock Trading' : 'Personal');
     const rows = transactions.map(t =>
-      `${t.date},${catLabel(t.category)},${t.type},"${t.subcategory}","${(t.description || '').replace(/"/g, '""')}",${t.recurring || 'none'},${t.tenure || ''},${t.amount}`
+      `${t.date},${catLabel(t.category)},${t.type},"${t.subcategory}","${(t.description || '').replace(/"/g, '""')}",${t.recurring || 'none'},${t.tenure || ''},${t.startDate || ''},${t.amount}`
     ).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -926,6 +938,7 @@
     document.getElementById('editAmount').value = t.amount;
     document.getElementById('editRecurring').value = t.recurring || 'none';
     document.getElementById('editTenure').value = t.tenure || '';
+    document.getElementById('editStartDate').value = t.startDate || '';
     document.getElementById('editDescription').value = t.description || '';
     document.getElementById('editModal').classList.add('active');
   }
@@ -954,6 +967,7 @@
       amount,
       recurring: document.getElementById('editRecurring').value,
       tenure: document.getElementById('editTenure').value ? parseInt(document.getElementById('editTenure').value) : null,
+      startDate: document.getElementById('editStartDate').value || null,
       description: document.getElementById('editDescription').value
     };
 
@@ -1014,6 +1028,7 @@
           description: findCol(['description', 'desc', 'note', 'notes']),
           recurring: findCol(['recurring', 'frequency', 'freq']),
           tenure: findCol(['tenure', 'months', 'numpayments', 'payments']),
+          startdate: findCol(['startdate', 'start', 'commitmentstart']),
           amount: findCol(['amount', 'amt', 'value'])
         };
 
@@ -1074,6 +1089,8 @@
             subcategory: colIdx.subcategory >= 0 ? (cols[colIdx.subcategory] || 'Other') : 'Other',
             description: colIdx.description >= 0 ? (cols[colIdx.description] || '') : '',
             recurring: colIdx.recurring >= 0 ? recNorm(cols[colIdx.recurring]) : 'none',
+            tenure: colIdx.tenure >= 0 && cols[colIdx.tenure] ? (parseInt(cols[colIdx.tenure]) || null) : null,
+            startDate: colIdx.startdate >= 0 && cols[colIdx.startdate] ? cols[colIdx.startdate] : null,
             amount: amt
           });
         }
