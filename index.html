@@ -699,12 +699,41 @@
     // Sort by date descending
     filtered.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
-    // Build period label
-    let periodLabel = 'All Data';
+    // Build period label — show actual date range of the data
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const longMonthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    function fmtDate(dStr) {
+      const d = new Date(dStr);
+      if (isNaN(d)) return dStr;
+      return d.getDate() + ' ' + monthNames[d.getMonth()] + ' ' + d.getFullYear();
+    }
+
+    let periodLabel;
     if (fm) {
+      // Specific month filter is active
       const [y, m] = fm.split('-');
-      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      periodLabel = monthNames[parseInt(m)-1] + ' ' + y;
+      periodLabel = longMonthNames[parseInt(m)-1] + ' ' + y;
+    } else {
+      // Compute actual date range from filtered data
+      const dates = filtered.map(t => t.date).filter(d => d).sort();
+      if (dates.length === 0) {
+        periodLabel = 'All Data';
+      } else {
+        const earliest = dates[0];
+        const latest = dates[dates.length - 1];
+        if (earliest === latest) {
+          periodLabel = fmtDate(earliest);
+        } else {
+          // Check if same month/year
+          const eD = new Date(earliest), lD = new Date(latest);
+          if (eD.getFullYear() === lD.getFullYear() && eD.getMonth() === lD.getMonth()) {
+            periodLabel = longMonthNames[eD.getMonth()] + ' ' + eD.getFullYear();
+          } else {
+            periodLabel = fmtDate(earliest) + ' → ' + fmtDate(latest);
+          }
+        }
+      }
     }
     const filterBits = [];
     if (fc !== 'all') filterBits.push('Category: ' + (fc === 'ecom' ? 'E-commerce' : fc === 'trade' ? 'Trading' : 'Personal'));
