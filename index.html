@@ -788,18 +788,45 @@
   h2 { font-size: 11pt; margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #34495e; color: #1e3a5f; }
   .header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #1e3a5f; padding-bottom: 6px; margin-bottom: 8px; }
   .meta { font-size: 9pt; color: #7f8c8d; }
+
+  /* HEADLINE AMOUNT CARDS */
+  .headline {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .hcard {
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    border-left-width: 4px;
+  }
+  .hcard.exp { border-left-color: #c0392b; background: #fdf3f1; }
+  .hcard.inc { border-left-color: #27ae60; background: #f1f9f3; }
+  .hcard.net { border-left-color: #2980b9; background: #f0f6fb; }
+  .hcard .lbl { font-size: 8.5pt; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+  .hcard .amt { font-size: 16pt; font-weight: 700; color: #2c3e50; }
+  .hcard.exp .amt { color: #c0392b; }
+  .hcard.inc .amt { color: #27ae60; }
+  .hcard.net .amt.pos { color: #27ae60; }
+  .hcard.net .amt.neg { color: #c0392b; }
+
   .kvgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 8px; }
-  .kv { display: flex; justify-content: space-between; padding: 3px 6px; background: #f8f9fa; border-radius: 3px; }
-  .kv .v { font-weight: 600; }
+  .kv { display: flex; justify-content: space-between; padding: 4px 8px; background: #f8f9fa; border-radius: 3px; font-size: 10pt; }
+  .kv .v { font-weight: 700; font-size: 11pt; }
   .kv.expense .v { color: #c0392b; }
   .kv.income .v { color: #27ae60; }
   table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 8px; }
-  th, td { padding: 3px 5px; border-bottom: 1px solid #ecf0f1; text-align: left; }
+  th, td { padding: 4px 6px; border-bottom: 1px solid #ecf0f1; text-align: left; }
   th { background: #ecf0f1; font-size: 8.5pt; text-transform: uppercase; color: #555; font-weight: 600; }
   td.r { text-align: right; }
-  td.amt { text-align: right; font-weight: 500; }
+  td.amt { text-align: right; font-weight: 600; font-size: 10pt; font-variant-numeric: tabular-nums; white-space: nowrap; }
   td.amt.exp { color: #c0392b; }
   td.amt.inc { color: #27ae60; }
+  tr.total-row { background: #fef9e7 !important; font-weight: 700; border-top: 2px solid #34495e; }
+  tr.total-row td { padding-top: 6px; padding-bottom: 6px; }
+  tr.total-row td.amt { font-size: 11pt; }
   .page-break { page-break-before: always; }
   .small { font-size: 8.5pt; color: #7f8c8d; }
   .footer { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ecf0f1; font-size: 8pt; color: #95a5a6; text-align: center; }
@@ -816,7 +843,7 @@
 <div class="topbar no-print">
   <button onclick="window.print()">🖨️ Print / Save as PDF</button>
   <button onclick="window.close()" class="close">Close</button>
-  <span class="small" style="margin-left:8px;">Tip: In print dialog, choose "Save as PDF" to download a copy.</span>
+  <span class="small" style="margin-left:8px;">📌 Report generated at <strong>${new Date().toLocaleString('en-IN')}</strong> · To refresh after changing data, close this tab and click Print Summary again.</span>
 </div>
 
 <!-- PAGE 1: SUMMARY -->
@@ -828,12 +855,23 @@
   <div class="meta">Generated: ${new Date().toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})}</div>
 </div>
 
-<h2>Overview</h2>
-<div class="kvgrid">
-  <div class="kv expense"><span>Total Expenses</span><span class="v">${fmtINR(totalExp)}</span></div>
-  <div class="kv income"><span>Total Income</span><span class="v">${fmtINR(totalInc)}</span></div>
-  <div class="kv ${netFlow >= 0 ? 'income' : 'expense'}"><span>Net Cash Flow</span><span class="v">${netFlow >= 0 ? '+' : ''}${fmtINR(netFlow)}</span></div>
-  <div class="kv"><span>Transaction Count</span><span class="v">${filtered.length}</span></div>
+<h2>📊 Headline Numbers</h2>
+<div class="headline">
+  <div class="hcard exp">
+    <div class="lbl">Total Expenses</div>
+    <div class="amt">${fmtINR(totalExp)}</div>
+    <div class="small">${filtered.filter(t => t.type === 'expense').length} expense entries</div>
+  </div>
+  <div class="hcard inc">
+    <div class="lbl">Total Income</div>
+    <div class="amt">${fmtINR(totalInc)}</div>
+    <div class="small">${filtered.filter(t => t.type === 'income').length} income entries</div>
+  </div>
+  <div class="hcard net">
+    <div class="lbl">Net Cash Flow</div>
+    <div class="amt ${netFlow >= 0 ? 'pos' : 'neg'}">${netFlow >= 0 ? '+' : ''}${fmtINR(netFlow)}</div>
+    <div class="small">${filtered.length} total transactions</div>
+  </div>
 </div>
 
 <h2>Category-wise Breakdown</h2>
@@ -862,6 +900,10 @@
     subcatList.slice(0, 15).forEach((s, i) => {
       html += `<tr><td>${i+1}</td><td>${s.sub}</td><td><span class="small">${catLabel(s.category)}</span></td><td class="amt exp">${fmtINR(s.total)}</td><td class="r">${s.count}</td><td class="r">${fmtPct(s.total, totalExp)}</td></tr>`;
     });
+    // Add total row for top 15
+    const top15Total = subcatList.slice(0, 15).reduce((sum, s) => sum + s.total, 0);
+    const top15Count = subcatList.slice(0, 15).reduce((sum, s) => sum + s.count, 0);
+    html += `<tr class="total-row"><td colspan="3">TOP 15 SUBTOTAL</td><td class="amt exp">${fmtINR(top15Total)}</td><td class="r">${top15Count}</td><td class="r">${fmtPct(top15Total, totalExp)}</td></tr>`;
 
     html += `</tbody></table>
 
@@ -881,7 +923,9 @@
     if (recurringList.length === 0) {
       html += `<tr><td colspan="5" style="text-align:center;color:#95a5a6;">No active recurring commitments.</td></tr>`;
     } else {
+      let recTotal = 0;
       recurringList.forEach(r => {
+        recTotal += r.amount;
         let progress = 'ongoing';
         if (r.tenure && r.paymentsLeft !== null) {
           const done = r.tenure - r.paymentsLeft;
@@ -889,6 +933,8 @@
         }
         html += `<tr><td>${r.sub}</td><td class="small">${r.desc || '—'}</td><td>${r.freq}</td><td>${progress}</td><td class="amt exp">${fmtINR(r.amount)}</td></tr>`;
       });
+      html += `<tr class="total-row"><td colspan="4">TOTAL (raw amounts, not normalized)</td><td class="amt exp">${fmtINR(recTotal)}</td></tr>`;
+      html += `<tr style="background:#fffbe6;font-weight:600;"><td colspan="4">→ Normalized monthly burden</td><td class="amt exp">${fmtINR(monthlyCommit)}</td></tr>`;
     }
     html += `</tbody></table>
 
@@ -899,6 +945,9 @@
     subcatList.forEach((s, i) => {
       html += `<tr><td>${i+1}</td><td>${s.sub}</td><td><span class="small">${catLabel(s.category)}</span></td><td class="amt exp">${fmtINR(s.total)}</td><td class="r">${s.count}</td><td class="r">${fmtPct(s.total, totalExp)}</td></tr>`;
     });
+    const allSubTotal = subcatList.reduce((sum, s) => sum + s.total, 0);
+    const allSubCount = subcatList.reduce((sum, s) => sum + s.count, 0);
+    html += `<tr class="total-row"><td colspan="3">GRAND TOTAL (all subcategories)</td><td class="amt exp">${fmtINR(allSubTotal)}</td><td class="r">${allSubCount}</td><td class="r">100%</td></tr>`;
     html += `</tbody></table>
 
 <!-- PAGE 3: TRANSACTION DETAIL -->
@@ -912,23 +961,36 @@
 <table>
   <thead><tr><th>Date</th><th>Cat</th><th>Subcategory</th><th>Description</th><th>Recurring</th><th class="r">Amount</th></tr></thead>
   <tbody>`;
+    let detailExp = 0, detailInc = 0;
     filtered.forEach(t => {
       const sign = t.type === 'expense' ? '-' : '+';
       const cls = t.type === 'expense' ? 'exp' : 'inc';
       const recLbl = (t.recurring && t.recurring !== 'none') ? t.recurring : '';
+      if (t.type === 'expense') detailExp += t.amount; else detailInc += t.amount;
       html += `<tr><td>${t.date}</td><td><span class="small">${catLabel(t.category)}</span></td><td>${t.subcategory}</td><td class="small">${(t.description || '').substring(0, 50)}</td><td class="small">${recLbl}</td><td class="amt ${cls}">${sign}${fmtINR(t.amount)}</td></tr>`;
     });
+    html += `<tr class="total-row"><td colspan="5">TOTAL EXPENSES</td><td class="amt exp">-${fmtINR(detailExp)}</td></tr>`;
+    if (detailInc > 0) {
+      html += `<tr class="total-row" style="background:#e8f8f0 !important;"><td colspan="5">TOTAL INCOME</td><td class="amt inc">+${fmtINR(detailInc)}</td></tr>`;
+      html += `<tr class="total-row" style="background:#eaf2f8 !important;"><td colspan="5">NET CASH FLOW</td><td class="amt ${(detailInc - detailExp) >= 0 ? 'inc' : 'exp'}">${(detailInc - detailExp) >= 0 ? '+' : ''}${fmtINR(detailInc - detailExp)}</td></tr>`;
+    }
     html += `</tbody></table>
 
 <div class="footer">Generated by your personal Expense Tracker · ${new Date().toLocaleString('en-IN')}</div>
 
 </body></html>`;
 
-    // Open in a new window
-    const w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
-    w.document.write(html);
-    w.document.close();
+    // Open in a new window via Blob URL (more reliable than document.write, ensures UTF-8)
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      alert('Pop-up blocked. Please allow pop-ups for this site and try again.');
+      URL.revokeObjectURL(url);
+      return;
+    }
+    // Clean up the blob URL after a delay (window already loaded by then)
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   async function clearAll() {
