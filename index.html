@@ -398,6 +398,7 @@
       <button class="small" onclick="exportCSV()">⬇ Export CSV (Backup)</button>
       <button class="small secondary" onclick="document.getElementById('importFile').click()">⬆ Import CSV</button>
       <input type="file" id="importFile" accept=".csv,.txt,text/csv,text/plain,application/vnd.ms-excel,*/*" style="display:none" onchange="importCSV(event)">
+      <button class="small" style="background:#16a085;" onclick="printSummary()">🖨️ Print Summary</button>
       <button class="small danger" onclick="clearAll()">🗑 Clear All Data</button>
     </div>
   </div>
@@ -513,6 +514,7 @@
         'Electricity Bill',
         'Entertainment',
         'Family Loan Payment',
+        'Family Function',
         'Father Support',
         'Food & Dining',
         'Grocery',
@@ -672,6 +674,261 @@
     document.getElementById('filterRecurring').value = 'all';
     document.getElementById('filterMonth').value = '';
     render();
+  }
+
+  // ========== PRINT SUMMARY ==========
+  function printSummary() {
+    if (transactions.length === 0) { alert('No data to print'); return; }
+
+    // Get current filter values
+    const fc = document.getElementById('filterCategory').value;
+    const ft = document.getElementById('filterType').value;
+    const fr = document.getElementById('filterRecurring').value;
+    const fm = document.getElementById('filterMonth').value;
+
+    // Apply same filtering logic as render()
+    let filtered = transactions.slice();
+    if (fc !== 'all') filtered = filtered.filter(t => t.category === fc);
+    if (ft !== 'all') filtered = filtered.filter(t => t.type === ft);
+    if (fr === 'recurring') filtered = filtered.filter(t => t.recurring && t.recurring !== 'none');
+    else if (fr !== 'all') filtered = filtered.filter(t => (t.recurring || 'none') === fr);
+    if (fm) filtered = filtered.filter(t => t.date.startsWith(fm));
+
+    if (filtered.length === 0) { alert('No data matches current filters. Adjust filters and try again.'); return; }
+
+    // Sort by date descending
+    filtered.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+    // Build period label
+    let periodLabel = 'All Data';
+    if (fm) {
+      const [y, m] = fm.split('-');
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      periodLabel = monthNames[parseInt(m)-1] + ' ' + y;
+    }
+    const filterBits = [];
+    if (fc !== 'all') filterBits.push('Category: ' + (fc === 'ecom' ? 'E-commerce' : fc === 'trade' ? 'Trading' : 'Personal'));
+    if (ft !== 'all') filterBits.push('Type: ' + ft);
+    if (fr !== 'all') filterBits.push('Frequency: ' + fr);
+    const filterLine = filterBits.length ? filterBits.join(' · ') : 'No filters applied';
+
+    // Calculate aggregates
+    let ecomIn = 0, ecomOut = 0, tradeIn = 0, tradeOut = 0, persIn = 0, persOut = 0;
+    filtered.forEach(t => {
+      if (t.category === 'ecom') {
+        if (t.type === 'income') ecomIn += t.amount; else ecomOut += t.amount;
+      } else if (t.category === 'trade') {
+        if (t.type === 'income') tradeIn += t.amount; else tradeOut += t.amount;
+      } else {
+        if (t.type === 'income') persIn += t.amount; else persOut += t.amount;
+      }
+    });
+    const totalExp = ecomOut + tradeOut + persOut;
+    const totalInc = ecomIn + tradeIn + persIn;
+    const netFlow = totalInc - totalExp;
+
+    // Subcategory totals (expenses only) sorted by total descending
+    const subcatMap = {};
+    filtered.forEach(t => {
+      if (t.type !== 'expense') return;
+      const key = t.category + '||' + t.subcategory;
+      if (!subcatMap[key]) subcatMap[key] = { category: t.category, sub: t.subcategory, total: 0, count: 0 };
+      subcatMap[key].total += t.amount;
+      subcatMap[key].count += 1;
+    });
+    const subcatList = Object.values(subcatMap).sort((a, b) => b.total - a.total);
+
+    // Recurring commitments (still active)
+    const today = new Date();
+    function paymentsElapsed(startDateStr, freq) {
+      const start = new Date(startDateStr);
+      if (isNaN(start)) return 0;
+      let months = (today.getFullYear() - start.getFullYear()) * 12 + (today.getMonth() - start.getMonth());
+      if (today.getDate() < start.getDate()) months--;
+      months = Math.max(0, months);
+      if (freq === 'monthly') return months + 1;
+      if (freq === 'quarterly') return Math.floor(months / 3) + 1;
+      if (freq === 'yearly') return Math.floor(months / 12) + 1;
+      return 0;
+    }
+    const recurringList = [];
+    let monthlyCommit = 0, totalRemaining = 0;
+    transactions.forEach(t => { // intentionally use ALL transactions for forward-looking commitments
+      if (t.type !== 'expense' || !t.recurring || t.recurring === 'none') return;
+      let stillActive = true, paymentsLeft = null;
+      if (t.tenure && t.tenure > 0) {
+        const anchor = t.startDate || t.date;
+        const elapsed = paymentsElapsed(anchor, t.recurring);
+        paymentsLeft = Math.max(0, t.tenure - elapsed);
+        if (paymentsLeft <= 0) stillActive = false;
+      }
+      if (!stillActive) return;
+      if (t.recurring === 'monthly') monthlyCommit += t.amount;
+      else if (t.recurring === 'quarterly') monthlyCommit += t.amount / 3;
+      else if (t.recurring === 'yearly') monthlyCommit += t.amount / 12;
+      if (paymentsLeft !== null) totalRemaining += t.amount * paymentsLeft;
+      recurringList.push({
+        sub: t.subcategory, amount: t.amount, freq: t.recurring,
+        tenure: t.tenure, paymentsLeft: paymentsLeft, desc: t.description || ''
+      });
+    });
+    recurringList.sort((a, b) => b.amount - a.amount);
+
+    // Format helpers
+    const fmtINR = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+    const fmtPct = (p, t) => t > 0 ? ((p/t)*100).toFixed(1) + '%' : '0%';
+    const catLabel = (c) => c === 'ecom' ? 'E-com' : c === 'trade' ? 'Trade' : 'Personal';
+
+    // Build HTML
+    let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Expense Summary - ${periodLabel}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #2c3e50; font-size: 10.5pt; line-height: 1.4; }
+  h1 { font-size: 16pt; margin: 0 0 2px; color: #1e3a5f; }
+  h2 { font-size: 11pt; margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #34495e; color: #1e3a5f; }
+  .header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #1e3a5f; padding-bottom: 6px; margin-bottom: 8px; }
+  .meta { font-size: 9pt; color: #7f8c8d; }
+  .kvgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 8px; }
+  .kv { display: flex; justify-content: space-between; padding: 3px 6px; background: #f8f9fa; border-radius: 3px; }
+  .kv .v { font-weight: 600; }
+  .kv.expense .v { color: #c0392b; }
+  .kv.income .v { color: #27ae60; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 8px; }
+  th, td { padding: 3px 5px; border-bottom: 1px solid #ecf0f1; text-align: left; }
+  th { background: #ecf0f1; font-size: 8.5pt; text-transform: uppercase; color: #555; font-weight: 600; }
+  td.r { text-align: right; }
+  td.amt { text-align: right; font-weight: 500; }
+  td.amt.exp { color: #c0392b; }
+  td.amt.inc { color: #27ae60; }
+  .page-break { page-break-before: always; }
+  .small { font-size: 8.5pt; color: #7f8c8d; }
+  .footer { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ecf0f1; font-size: 8pt; color: #95a5a6; text-align: center; }
+  .pill { display: inline-block; padding: 1px 5px; border-radius: 8px; font-size: 8pt; }
+  .pill.p { background: #d6eaf8; color: #1f618d; }
+  .pill.e { background: #fdebd0; color: #b9770e; }
+  .pill.t { background: #d5f5e3; color: #1e8449; }
+  @media print { .no-print { display: none; } body { font-size: 10pt; } }
+  .topbar { background: #fffbe6; border: 1px solid #f39c12; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; }
+  .topbar button { padding: 6px 14px; background: #16a085; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11pt; margin-right: 6px; }
+  .topbar button.close { background: #95a5a6; }
+</style></head><body>
+
+<div class="topbar no-print">
+  <button onclick="window.print()">🖨️ Print / Save as PDF</button>
+  <button onclick="window.close()" class="close">Close</button>
+  <span class="small" style="margin-left:8px;">Tip: In print dialog, choose "Save as PDF" to download a copy.</span>
+</div>
+
+<!-- PAGE 1: SUMMARY -->
+<div class="header">
+  <div>
+    <h1>💰 Expense Summary</h1>
+    <div class="meta">Period: <strong>${periodLabel}</strong> · ${filterLine}</div>
+  </div>
+  <div class="meta">Generated: ${new Date().toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})}</div>
+</div>
+
+<h2>Overview</h2>
+<div class="kvgrid">
+  <div class="kv expense"><span>Total Expenses</span><span class="v">${fmtINR(totalExp)}</span></div>
+  <div class="kv income"><span>Total Income</span><span class="v">${fmtINR(totalInc)}</span></div>
+  <div class="kv ${netFlow >= 0 ? 'income' : 'expense'}"><span>Net Cash Flow</span><span class="v">${netFlow >= 0 ? '+' : ''}${fmtINR(netFlow)}</span></div>
+  <div class="kv"><span>Transaction Count</span><span class="v">${filtered.length}</span></div>
+</div>
+
+<h2>Category-wise Breakdown</h2>
+<table>
+  <thead><tr><th>Category</th><th class="r">Income</th><th class="r">Expense</th><th class="r">Net</th><th class="r">% of Exp</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill e">E-commerce</span></td><td class="amt inc">${fmtINR(ecomIn)}</td><td class="amt exp">${fmtINR(ecomOut)}</td><td class="amt">${fmtINR(ecomIn - ecomOut)}</td><td class="r">${fmtPct(ecomOut, totalExp)}</td></tr>
+    <tr><td><span class="pill t">Stock Trading</span></td><td class="amt inc">${fmtINR(tradeIn)}</td><td class="amt exp">${fmtINR(tradeOut)}</td><td class="amt">${fmtINR(tradeIn - tradeOut)}</td><td class="r">${fmtPct(tradeOut, totalExp)}</td></tr>
+    <tr><td><span class="pill p">Personal</span></td><td class="amt inc">${fmtINR(persIn)}</td><td class="amt exp">${fmtINR(persOut)}</td><td class="amt">${fmtINR(persIn - persOut)}</td><td class="r">${fmtPct(persOut, totalExp)}</td></tr>
+    <tr style="font-weight:600;background:#f8f9fa;"><td>TOTAL</td><td class="amt inc">${fmtINR(totalInc)}</td><td class="amt exp">${fmtINR(totalExp)}</td><td class="amt">${fmtINR(netFlow)}</td><td class="r">100%</td></tr>
+  </tbody>
+</table>
+
+<h2>Fixed Commitments (forward-looking, all data)</h2>
+<div class="kvgrid">
+  <div class="kv"><span>Monthly Commitments</span><span class="v">${fmtINR(monthlyCommit)}</span></div>
+  <div class="kv"><span>Total Remaining Obligation</span><span class="v">${fmtINR(totalRemaining)}</span></div>
+</div>
+<p class="small">Monthly = sum of all active recurring expenses normalized to monthly. Obligation = total future payments for finite-tenure commitments.</p>
+
+<h2>Top Expense Subcategories (Top 15)</h2>
+<table>
+  <thead><tr><th>#</th><th>Subcategory</th><th>Cat</th><th class="r">Total</th><th class="r">Count</th><th class="r">% of Exp</th></tr></thead>
+  <tbody>`;
+
+    subcatList.slice(0, 15).forEach((s, i) => {
+      html += `<tr><td>${i+1}</td><td>${s.sub}</td><td><span class="small">${catLabel(s.category)}</span></td><td class="amt exp">${fmtINR(s.total)}</td><td class="r">${s.count}</td><td class="r">${fmtPct(s.total, totalExp)}</td></tr>`;
+    });
+
+    html += `</tbody></table>
+
+<!-- PAGE 2: RECURRING COMMITMENTS + REMAINING SUBCATEGORIES -->
+<div class="page-break"></div>
+
+<div class="header">
+  <div><h1>📅 Recurring Commitments & Detail</h1><div class="meta">Period: <strong>${periodLabel}</strong></div></div>
+  <div class="meta">Page 2 of 3</div>
+</div>
+
+<h2>Active Recurring Commitments</h2>
+<table>
+  <thead><tr><th>Subcategory</th><th>Description</th><th>Frequency</th><th>Progress</th><th class="r">Amount</th></tr></thead>
+  <tbody>`;
+
+    if (recurringList.length === 0) {
+      html += `<tr><td colspan="5" style="text-align:center;color:#95a5a6;">No active recurring commitments.</td></tr>`;
+    } else {
+      recurringList.forEach(r => {
+        let progress = 'ongoing';
+        if (r.tenure && r.paymentsLeft !== null) {
+          const done = r.tenure - r.paymentsLeft;
+          progress = `${done} of ${r.tenure}`;
+        }
+        html += `<tr><td>${r.sub}</td><td class="small">${r.desc || '—'}</td><td>${r.freq}</td><td>${progress}</td><td class="amt exp">${fmtINR(r.amount)}</td></tr>`;
+      });
+    }
+    html += `</tbody></table>
+
+<h2>All Subcategory Totals</h2>
+<table>
+  <thead><tr><th>#</th><th>Subcategory</th><th>Cat</th><th class="r">Total</th><th class="r">Count</th><th class="r">% of Exp</th></tr></thead>
+  <tbody>`;
+    subcatList.forEach((s, i) => {
+      html += `<tr><td>${i+1}</td><td>${s.sub}</td><td><span class="small">${catLabel(s.category)}</span></td><td class="amt exp">${fmtINR(s.total)}</td><td class="r">${s.count}</td><td class="r">${fmtPct(s.total, totalExp)}</td></tr>`;
+    });
+    html += `</tbody></table>
+
+<!-- PAGE 3: TRANSACTION DETAIL -->
+<div class="page-break"></div>
+
+<div class="header">
+  <div><h1>📋 Transaction Detail</h1><div class="meta">Period: <strong>${periodLabel}</strong> · ${filtered.length} transactions</div></div>
+  <div class="meta">Page 3 of 3</div>
+</div>
+
+<table>
+  <thead><tr><th>Date</th><th>Cat</th><th>Subcategory</th><th>Description</th><th>Recurring</th><th class="r">Amount</th></tr></thead>
+  <tbody>`;
+    filtered.forEach(t => {
+      const sign = t.type === 'expense' ? '-' : '+';
+      const cls = t.type === 'expense' ? 'exp' : 'inc';
+      const recLbl = (t.recurring && t.recurring !== 'none') ? t.recurring : '';
+      html += `<tr><td>${t.date}</td><td><span class="small">${catLabel(t.category)}</span></td><td>${t.subcategory}</td><td class="small">${(t.description || '').substring(0, 50)}</td><td class="small">${recLbl}</td><td class="amt ${cls}">${sign}${fmtINR(t.amount)}</td></tr>`;
+    });
+    html += `</tbody></table>
+
+<div class="footer">Generated by your personal Expense Tracker · ${new Date().toLocaleString('en-IN')}</div>
+
+</body></html>`;
+
+    // Open in a new window
+    const w = window.open('', '_blank');
+    if (!w) { alert('Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
+    w.document.write(html);
+    w.document.close();
   }
 
   async function clearAll() {
